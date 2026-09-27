@@ -28,10 +28,36 @@ button,input,select{font:inherit}button{border:0;cursor:pointer}.app{max-width:6
 .toast{position:fixed;z-index:50;left:50%;bottom:92px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;background:#14213d;color:#fff;padding:11px 14px;border-radius:12px;font-size:12px;transition:.2s;max-width:90%;text-align:center}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 @media(max-width:390px){.task{grid-template-columns:48px 1fr}.task img{width:48px;height:48px}.actions{grid-column:2;flex-direction:row;flex-wrap:wrap}.btn{flex:1}}
 </style>
-</head>
-<body>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+body.auth-locked .app{display:none!important}
+#authScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px;background:linear-gradient(180deg,#edf6ff,#f7fbff)}
+.authbox{width:min(440px,100%);background:#fff;border-radius:26px;padding:24px;box-shadow:0 15px 45px #123a8f18;border:1px solid #e8f0fa}
+.authbrand{text-align:center}.authbrand img{width:82px;height:82px;border-radius:22px}.authbrand h1{font-size:25px;margin:12px 0 4px}.authbrand p{color:var(--muted);margin:0 0 20px}
+.auth-tabs{display:grid;grid-template-columns:1fr 1fr;background:#edf5ff;border-radius:12px;padding:4px;margin-bottom:18px}.auth-tabs button{padding:10px;border-radius:9px;background:transparent;color:#56708f;font-weight:800}.auth-tabs button.active{background:#fff;color:var(--blue);box-shadow:0 2px 8px #123a8f12}
+.authmsg{min-height:20px;font-size:12px;text-align:center;margin:8px 0;color:#a62e2e}.role{display:grid;grid-template-columns:1fr 1fr;gap:8px}.role button{padding:11px;border:1px solid #d7e1ef;background:#fff;border-radius:12px;color:#526783;font-weight:800}.role button.active{border-color:var(--blue);background:#eaf3ff;color:var(--blue)}
+.accountbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 15px;background:#fff;border-bottom:1px solid var(--line)}.accountbar span{font-size:11px;color:var(--muted)}.logout{background:#ffe9e9;color:#a62e2e;border-radius:10px;padding:7px 10px;font-weight:800;font-size:11px}
+</style></head>
+<body class="auth-locked">
+<div id="authScreen">
+  <div class="authbox">
+    <div class="authbrand"><img src="logo.jpeg" alt="Lembrete da Nádia"><h1>Lembrete da Nádia</h1><p>Rotina e acompanhamento</p></div>
+    <div class="auth-tabs"><button id="loginTab" class="active" onclick="authMode('login')">Entrar</button><button id="signupTab" onclick="authMode('signup')">Criar conta</button></div>
+    <div id="signupFields" style="display:none">
+      <div class="field"><label>Nome</label><input id="authName" type="text" placeholder="Ex.: Nádia"></div>
+      <div class="field"><label>Tipo de conta</label><div class="role"><button id="grandmotherRole" class="active" onclick="pickRole('grandmother')">Nádia</button><button id="responsibleRole" onclick="pickRole('responsible')">Responsável</button></div></div>
+    </div>
+    <div class="field"><label>E-mail</label><input id="authEmail" type="email" autocomplete="email" placeholder="seuemail@exemplo.com"></div>
+    <div class="field"><label>Senha</label><input id="authPassword" type="password" autocomplete="current-password" placeholder="Mínimo de 6 caracteres"></div>
+    <button id="authSubmit" class="btn btn-primary" style="width:100%;padding:13px" onclick="submitAuth()">Entrar</button>
+    <button id="resetBtn" class="btn" style="width:100%;margin-top:8px;background:#edf5ff;color:#155eb7" onclick="resetPassword()">Esqueci minha senha</button>
+    <div id="authMsg" class="authmsg"></div>
+    <div class="small" style="text-align:center">Acesso protegido pelo Supabase Auth.</div>
+  </div>
+</div>
 <div class="app">
 <header class="top"><div class="brand"><img src="logo.jpeg" alt="Lembrete da Nádia"><div><h1>Lembrete da Nádia</h1><p>Rotina e acompanhamento</p></div></div></header>
+<div class="accountbar"><span id="accountLabel"></span><button class="logout" onclick="signOutApp()">Sair</button></div>
 
 <main class="content">
 <section id="home" class="screen active">
@@ -139,5 +165,119 @@ async function sendHelp(){
 if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))}
 render();
 </script>
-</body>
+<script>
+const LN_SUPABASE_URL="https://idotiitnmimykhwobcbo.supabase.co";
+const LN_SUPABASE_KEY="sb_publishable_kOP8fcJSJzI5E3zvYBxGRw_EzUAwoCK";
+const LN_AUTH=window.supabase.createClient(LN_SUPABASE_URL,LN_SUPABASE_KEY);
+let lnMode="login",lnRole="grandmother",lnUser=null,lnProfile=null;
+
+function authMode(mode){
+  lnMode=mode;
+  $("loginTab").classList.toggle("active",mode==="login");
+  $("signupTab").classList.toggle("active",mode==="signup");
+  $("signupFields").style.display=mode==="signup"?"block":"none";
+  $("authSubmit").textContent=mode==="login"?"Entrar":"Criar conta";
+  $("resetBtn").style.display=mode==="login"?"block":"none";
+  $("authMsg").textContent="";
+}
+function pickRole(role){
+  lnRole=role;
+  $("grandmotherRole").classList.toggle("active",role==="grandmother");
+  $("responsibleRole").classList.toggle("active",role==="responsible");
+}
+function authMessage(message,error=true){
+  $("authMsg").textContent=message;
+  $("authMsg").style.color=error?"#a62e2e":"#117447";
+}
+async function ensureProfile(user){
+  const existing=await LN_AUTH.from("lembrete_profiles").select("*").eq("user_id",user.id).maybeSingle();
+  if(existing.data){lnProfile=existing.data;return existing.data}
+  const name=$("authName")?.value?.trim()||user.user_metadata?.full_name||"Usuário";
+  const role=user.user_metadata?.role||lnRole||"grandmother";
+  const created=await LN_AUTH.from("lembrete_profiles").insert({user_id:user.id,full_name:name,role}).select().single();
+  if(created.error){console.warn(created.error);return null}
+  lnProfile=created.data;return created.data;
+}
+function loadUserState(){
+  const uid=lnUser.id;
+  settings=JSON.parse(localStorage.getItem("ln_settings_"+uid)||"null")||DEFAULTS.map(x=>({...x}));
+  records=JSON.parse(localStorage.getItem("ln_records_"+uid)||"{}");
+  inventory=JSON.parse(localStorage.getItem("ln_inventory_"+uid)||"null")||PRODUCTS.map(p=>p.stock);
+}
+window.save=function(){
+  if(!lnUser)return;
+  const uid=lnUser.id;
+  localStorage.setItem("ln_settings_"+uid,JSON.stringify(settings));
+  localStorage.setItem("ln_records_"+uid,JSON.stringify(records));
+  localStorage.setItem("ln_inventory_"+uid,JSON.stringify(inventory));
+};
+async function enterApp(user){
+  lnUser=user;
+  const profile=await ensureProfile(user);
+  if(!profile){
+    authMessage("Não foi possível carregar o perfil da conta.");
+    await LN_AUTH.auth.signOut();
+    return;
+  }
+  loadUserState();
+  $("accountLabel").textContent=(profile.full_name||user.email)+" • "+(profile.role==="responsible"?"Responsável":"Nádia");
+  $("navStock").style.display=profile.role==="responsible"?"":"none";
+  $("navSettings").style.display=profile.role==="responsible"?"":"none";
+  $("hello").textContent=profile.role==="responsible"?"Olá, responsável!":"Olá, "+(profile.full_name||"Nádia")+"!";
+  document.body.classList.remove("auth-locked");
+  $("authScreen").style.display="none";
+  if(profile.role!=="responsible"){
+    document.querySelectorAll(".screen").forEach(x=>x.classList.remove("active"));
+    $("home").classList.add("active");
+  }
+  render();
+}
+async function submitAuth(){
+  const email=$("authEmail").value.trim(),password=$("authPassword").value;
+  if(!email||!password){authMessage("Informe o e-mail e a senha.");return}
+  $("authSubmit").disabled=true;
+  if(lnMode==="login"){
+    const result=await LN_AUTH.auth.signInWithPassword({email,password});
+    if(result.error)authMessage(result.error.message||"E-mail ou senha inválidos.");
+    else if(result.data.user)await enterApp(result.data.user);
+  }else{
+    const name=$("authName").value.trim();
+    if(!name){authMessage("Informe o nome.");$("authSubmit").disabled=false;return}
+    if(password.length<6){authMessage("A senha precisa ter pelo menos 6 caracteres.");$("authSubmit").disabled=false;return}
+    const result=await LN_AUTH.auth.signUp({email,password,options:{data:{full_name:name,role:lnRole},emailRedirectTo:location.href}});
+    if(result.error)authMessage(result.error.message||"Não foi possível criar a conta.");
+    else if(result.data.session&&result.data.user){
+      await enterApp(result.data.user);
+    }else{
+      authMessage("Conta criada. Confira o e-mail para confirmar o acesso.",false);
+    }
+  }
+  $("authSubmit").disabled=false;
+}
+async function resetPassword(){
+  const email=$("authEmail").value.trim();
+  if(!email){authMessage("Digite seu e-mail primeiro.");return}
+  const result=await LN_AUTH.auth.resetPasswordForEmail(email,{redirectTo:location.href});
+  authMessage(result.error?result.error.message:"Se a conta existir, enviaremos as instruções para redefinir a senha.",!!result.error);
+}
+async function signOutApp(){
+  await LN_AUTH.auth.signOut();
+  lnUser=null;lnProfile=null;
+  document.body.classList.add("auth-locked");
+  $("authScreen").style.display="flex";
+  $("authPassword").value="";
+  authMode("login");
+}
+LN_AUTH.auth.onAuthStateChange((event,session)=>{
+  if(event==="SIGNED_OUT"){
+    lnUser=null;lnProfile=null;
+    document.body.classList.add("auth-locked");
+    $("authScreen").style.display="flex";
+  }
+});
+(async()=>{
+  const result=await LN_AUTH.auth.getSession();
+  if(result.data.session?.user) await enterApp(result.data.session.user);
+})();
+</script></body>
 </html>

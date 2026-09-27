@@ -168,8 +168,7 @@ render();
 <script>
 const LN_SUPABASE_URL="https://idotiitnmimykhwobcbo.supabase.co";
 const LN_SUPABASE_KEY="sb_publishable_kOP8fcJSJzI5E3zvYBxGRw_EzUAwoCK";
-const LN_AUTH=window.supabase.createClient(LN_SUPABASE_URL,LN_SUPABASE_KEY);
-let lnMode="login",lnRole="grandmother",lnUser=null,lnProfile=null;
+let LN_AUTH=null,lnMode="login",lnRole="grandmother",lnUser=null,lnProfile=null;
 
 function authMode(mode){
   lnMode=mode;
@@ -189,13 +188,29 @@ function authMessage(message,error=true){
   $("authMsg").textContent=message;
   $("authMsg").style.color=error?"#a62e2e":"#117447";
 }
+function setAuthBusy(busy){
+  $("authSubmit").disabled=busy;
+  $("authSubmit").textContent=busy?(lnMode==="login"?"Entrando...":"Criando conta..."):(lnMode==="login"?"Entrar":"Criar conta");
+}
+async function ensureSupabase(){
+  if(window.supabase){LN_AUTH=window.supabase.createClient(LN_SUPABASE_URL,LN_SUPABASE_KEY);return true}
+  authMessage("Carregando conexão segura... ",true);
+  await new Promise((resolve,reject)=>{
+    const s=document.createElement("script");
+    s.src="https://unpkg.com/@supabase/supabase-js@2";
+    s.onload=resolve;s.onerror=reject;document.head.appendChild(s);
+  });
+  if(!window.supabase)throw new Error("Biblioteca de conexão não carregou.");
+  LN_AUTH=window.supabase.createClient(LN_SUPABASE_URL,LN_SUPABASE_KEY);
+  return true;
+}
 async function ensureProfile(user){
   const existing=await LN_AUTH.from("lembrete_profiles").select("*").eq("user_id",user.id).maybeSingle();
   if(existing.data){lnProfile=existing.data;return existing.data}
-  const name=$("authName")?.value?.trim()||user.user_metadata?.full_name||"Usuário";
+  const name=$("authName").value.trim()||user.user_metadata?.full_name||"Usuário";
   const role=user.user_metadata?.role||lnRole||"grandmother";
   const created=await LN_AUTH.from("lembrete_profiles").insert({user_id:user.id,full_name:name,role}).select().single();
-  if(created.error){console.warn(created.error);return null}
+  if(created.error){console.error(created.error);authMessage("A conta foi criada, mas não foi possível criar o perfil: "+created.error.message);return null}
   lnProfile=created.data;return created.data;
 }
 function loadUserState(){
@@ -214,11 +229,7 @@ window.save=function(){
 async function enterApp(user){
   lnUser=user;
   const profile=await ensureProfile(user);
-  if(!profile){
-    authMessage("Não foi possível carregar o perfil da conta.");
-    await LN_AUTH.auth.signOut();
-    return;
-  }
+  if(!profile)return;
   loadUserState();
   $("accountLabel").textContent=(profile.full_name||user.email)+" • "+(profile.role==="responsible"?"Responsável":"Nádia");
   $("navStock").style.display=profile.role==="responsible"?"":"none";
@@ -226,58 +237,68 @@ async function enterApp(user){
   $("hello").textContent=profile.role==="responsible"?"Olá, responsável!":"Olá, "+(profile.full_name||"Nádia")+"!";
   document.body.classList.remove("auth-locked");
   $("authScreen").style.display="none";
-  if(profile.role!=="responsible"){
-    document.querySelectorAll(".screen").forEach(x=>x.classList.remove("active"));
-    $("home").classList.add("active");
-  }
   render();
 }
 async function submitAuth(){
-  const email=$("authEmail").value.trim(),password=$("authPassword").value;
-  if(!email||!password){authMessage("Informe o e-mail e a senha.");return}
-  $("authSubmit").disabled=true;
-  if(lnMode==="login"){
-    const result=await LN_AUTH.auth.signInWithPassword({email,password});
-    if(result.error)authMessage(result.error.message||"E-mail ou senha inválidos.");
-    else if(result.data.user)await enterApp(result.data.user);
-  }else{
-    const name=$("authName").value.trim();
-    if(!name){authMessage("Informe o nome.");$("authSubmit").disabled=false;return}
-    if(password.length<6){authMessage("A senha precisa ter pelo menos 6 caracteres.");$("authSubmit").disabled=false;return}
-    const result=await LN_AUTH.auth.signUp({email,password,options:{data:{full_name:name,role:lnRole},emailRedirectTo:location.href}});
-    if(result.error)authMessage(result.error.message||"Não foi possível criar a conta.");
-    else if(result.data.session&&result.data.user){
-      await enterApp(result.data.user);
+  try{
+    await ensureSupabase();
+    const email=$("authEmail").value.trim(),password=$("authPassword").value;
+    if(!email||!password){authMessage("Informe o e-mail e a senha.");return}
+    setAuthBusy(true);
+    if(lnMode==="login"){
+      const result=await LN_AUTH.auth.signInWithPassword({email,password});
+      if(result.error){authMessage(result.error.message||"E-mail ou senha inválidos.");return}
+      if(result.data.user)await enterApp(result.data.user);
     }else{
-      authMessage("Conta criada. Confira o e-mail para confirmar o acesso.",false);
+      const name=$("authName").value.trim();
+      if(!name){authMessage("Informe o nome.");return}
+      if(password.length<6){authMessage("A senha precisa ter pelo menos 6 caracteres.");return}
+      const result=await LN_AUTH.auth.signUp({email,password,options:{data:{full_name:name,role:lnRole},emailRedirectTo:location.href}});
+      if(result.error){authMessage(result.error.message||"Não foi possível criar a conta.");return}
+      if(result.data.session&&result.data.user){
+        await enterApp(result.data.user);
+      }else{
+        authMessage("Conta criada! Verifique o e-mail para confirmar a conta e depois entre no aplicativo.",false);
+      }
     }
-  }
-  $("authSubmit").disabled=false;
+  }catch(e){
+    console.error(e);
+    authMessage("Não foi possível conectar ao sistema. Tente novamente em alguns segundos.");
+  }finally{setAuthBusy(false)}
 }
 async function resetPassword(){
-  const email=$("authEmail").value.trim();
-  if(!email){authMessage("Digite seu e-mail primeiro.");return}
-  const result=await LN_AUTH.auth.resetPasswordForEmail(email,{redirectTo:location.href});
-  authMessage(result.error?result.error.message:"Se a conta existir, enviaremos as instruções para redefinir a senha.",!!result.error);
+  try{
+    await ensureSupabase();
+    const email=$("authEmail").value.trim();
+    if(!email){authMessage("Digite seu e-mail primeiro.");return}
+    const result=await LN_AUTH.auth.resetPasswordForEmail(email,{redirectTo:location.href});
+    authMessage(result.error?result.error.message:"Enviamos as instruções para redefinir a senha.",!!result.error);
+  }catch(e){authMessage("Não foi possível enviar o e-mail de recuperação.")}
 }
 async function signOutApp(){
-  await LN_AUTH.auth.signOut();
+  if(LN_AUTH)await LN_AUTH.auth.signOut();
   lnUser=null;lnProfile=null;
   document.body.classList.add("auth-locked");
   $("authScreen").style.display="flex";
   $("authPassword").value="";
   authMode("login");
 }
-LN_AUTH.auth.onAuthStateChange((event,session)=>{
-  if(event==="SIGNED_OUT"){
-    lnUser=null;lnProfile=null;
-    document.body.classList.add("auth-locked");
-    $("authScreen").style.display="flex";
-  }
-});
 (async()=>{
-  const result=await LN_AUTH.auth.getSession();
-  if(result.data.session?.user) await enterApp(result.data.session.user);
+  try{
+    await ensureSupabase();
+    const result=await LN_AUTH.auth.getSession();
+    if(result.data.session?.user)await enterApp(result.data.session.user);
+    LN_AUTH.auth.onAuthStateChange((event,session)=>{
+      if(event==="SIGNED_OUT"){
+        lnUser=null;lnProfile=null;
+        document.body.classList.add("auth-locked");
+        $("authScreen").style.display="flex";
+      }
+    });
+  }catch(e){
+    console.error(e);
+    authMessage("Não foi possível carregar o login. Recarregue a página.");
+  }
 })();
 </script></body>
 </html>

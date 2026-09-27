@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1677e8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Lembrete da Nádia">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="logo.jpeg">
+<title>Lembrete da Nádia</title>
+<style>
+:root{--blue:#1677e8;--blue2:#4da0ff;--navy:#123a8f;--bg:#f5f9ff;--text:#14213d;--muted:#6d7890;--line:#e1e9f5;--green:#18a765;--greenbg:#e1f7eb;--orange:#d98200;--orangebg:#fff1d7;--red:#c63e3e;--redbg:#ffe3e3}
+*{box-sizing:border-box}html{background:var(--bg)}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Arial,sans-serif;color:var(--text);background:var(--bg);min-height:100vh}
+button,input,select{font:inherit}button{border:0;cursor:pointer}.app{max-width:620px;margin:0 auto;min-height:100vh;background:var(--bg);padding-bottom:88px}
+.top{padding:18px 18px 22px;background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;border-radius:0 0 28px 28px;box-shadow:0 5px 22px #1677e833}
+.brand{display:flex;align-items:center;gap:12px}.brand img{width:58px;height:58px;border-radius:17px;object-fit:cover;background:#fff}.brand h1{font-size:20px;line-height:1.1;margin:0}.brand p{margin:5px 0 0;font-size:13px;opacity:.9}
+.content{padding:15px}.screen{display:none}.screen.active{display:block}.hello{font-size:24px;font-weight:800;margin:4px 0}.date{font-size:13px;color:var(--muted);margin-bottom:14px}
+.card{background:#fff;border:1px solid #edf2f8;border-radius:20px;padding:15px;margin-bottom:13px;box-shadow:0 7px 22px #123a8f0c}.card h2{font-size:17px;margin:0 0 12px}
+.task{display:grid;grid-template-columns:54px 1fr auto;gap:11px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}.task:last-child{border-bottom:0}.task img{width:54px;height:54px;object-fit:cover;border-radius:14px}.task b{display:block;font-size:15px}.task small{display:block;color:var(--muted);font-size:12px;margin-top:3px;line-height:1.35}
+.status{display:inline-block;border-radius:99px;padding:5px 8px;font-size:11px;font-weight:800;margin-top:5px}.ok{background:var(--greenbg);color:#117447}.pending{background:var(--orangebg);color:#986000}.late{background:var(--redbg);color:#a62e2e}
+.actions{display:flex;flex-direction:column;gap:6px}.btn{border-radius:11px;padding:9px 10px;font-weight:800;font-size:12px;white-space:nowrap}.btn-ok{background:var(--greenbg);color:#117447}.btn-later{background:var(--orangebg);color:#986000}.btn-primary{background:var(--blue);color:#fff}.btn-help{background:#eaf3ff;color:#155eb7}.btn-danger{background:var(--redbg);color:#a62e2e}
+.bottom{position:fixed;z-index:20;bottom:0;left:50%;transform:translateX(-50%);width:min(620px,100%);display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:9px 9px calc(9px + env(safe-area-inset-bottom));background:#ffffffee;backdrop-filter:blur(14px);border-top:1px solid var(--line)}.nav{background:transparent;color:#66748c;border-radius:13px;padding:8px 3px;font-size:10px;font-weight:800}.nav.active{background:#eaf3ff;color:var(--blue)}
+.statgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.stat{background:#fff;border:1px solid var(--line);border-radius:17px;padding:13px}.stat strong{display:block;font-size:25px}.stat span{font-size:11px;color:var(--muted)}
+.field{margin-bottom:12px}.field label{display:block;font-size:12px;font-weight:800;margin-bottom:5px}.field input,.field select{width:100%;padding:12px;border:1px solid #d7e1ef;border-radius:12px;background:#fff;outline:none}.field input:focus,.field select:focus{border-color:var(--blue)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}.small{font-size:12px;color:var(--muted)}.empty{padding:20px;text-align:center;color:var(--muted);font-size:13px}
+.toast{position:fixed;z-index:50;left:50%;bottom:92px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;background:#14213d;color:#fff;padding:11px 14px;border-radius:12px;font-size:12px;transition:.2s;max-width:90%;text-align:center}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media(max-width:390px){.task{grid-template-columns:48px 1fr}.task img{width:48px;height:48px}.actions{grid-column:2;flex-direction:row;flex-wrap:wrap}.btn{flex:1}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="top"><div class="brand"><img src="logo.jpeg" alt="Lembrete da Nádia"><div><h1>Lembrete da Nádia</h1><p>Rotina e acompanhamento</p></div></div></header>
+
+<main class="content">
+<section id="home" class="screen active">
+  <div class="hello">Olá, Nádia!</div><div class="date" id="today"></div>
+  <div class="card"><div class="row"><div><h2 style="margin-bottom:4px">Como está a rotina?</h2><div class="small" id="progressText">0 de 5 concluídos</div></div><button class="btn btn-help" onclick="sendHelp()">Preciso de ajuda</button></div></div>
+  <div class="card"><h2>Hoje</h2><div id="tasks"></div></div>
+</section>
+
+<section id="summary" class="screen">
+  <h2>Resumo</h2>
+  <div class="statgrid"><div class="stat"><strong id="sDone">0</strong><span>concluídos</span></div><div class="stat"><strong id="sPending">0</strong><span>pendentes</span></div><div class="stat"><strong id="sLow">0</strong><span>estoque baixo</span></div></div>
+  <div class="card" style="margin-top:13px"><h2>Histórico</h2><div id="history"></div></div>
+</section>
+
+<section id="stock" class="screen">
+  <h2>Estoque</h2><div class="card"><div class="small" style="margin-bottom:10px">O app acompanha a quantidade disponível e sinaliza quando estiver próxima do limite.</div><div id="stockList"></div></div>
+</section>
+
+<section id="settings" class="screen">
+  <h2>Configurações</h2>
+  <div class="card">
+    <div class="field"><label>Suplemento</label><select id="productSelect"></select></div>
+    <div class="field"><label>Horário do lembrete</label><input id="timeInput" type="time"></div>
+    <div class="field"><label>Mensagem</label><input id="messageInput" type="text"></div>
+    <div class="field"><label>Lembrar novamente depois de (minutos)</label><input id="snoozeInput" type="number" min="5" step="5"></div>
+    <button class="btn btn-primary" style="width:100%" onclick="saveSettings()">Salvar</button>
+  </div>
+  <div class="card"><h2>Notificações</h2><div class="small">Ative as notificações no celular para receber os lembretes. No iPhone, a versão instalada como app (PWA) precisa ter permissão de notificações.</div><button class="btn btn-primary" style="margin-top:10px" onclick="requestNotifications()">Ativar notificações</button></div>
+  <div class="card"><h2>Conta</h2><div class="small">A versão de produção terá login separado para Nádia e responsável e sincronização em nuvem.</div></div>
+</section>
+</main>
+
+<nav class="bottom">
+<button class="nav active" onclick="go('home',this)">Hoje</button>
+<button class="nav" onclick="go('summary',this)">Resumo</button>
+<button class="nav" onclick="go('stock',this)">Estoque</button>
+<button class="nav" onclick="go('settings',this)">Ajustes</button>
+</nav>
+<div id="toast" class="toast"></div>
+
+<script>
+const PRODUCTS=[
+ {id:"d3k2",name:"Vitamina D3 + K2",dose:"5 gotas",instruction:"Pós café da manhã",min:7,stock:30},
+ {id:"omega3",name:"Ômega 3 Ultra",dose:"2 cápsulas",instruction:"Pós almoço",min:10,stock:60},
+ {id:"whey",name:"HT Protein",dose:"2 scoops + 160 ml",instruction:"À tarde",min:4,stock:20},
+ {id:"thermo",name:"Thermo Night+",dose:"2 cápsulas",instruction:"30 min antes da janta",min:10,stock:60},
+ {id:"magnesio",name:"Magnésio + Inositol 6.0",dose:"1 scoop + 150 ml",instruction:"30 min antes de dormir",min:5,stock:30}
+];
+const DEFAULTS=[
+ {time:"",msg:"Hora de tomar a Vitamina D3 + K2",snooze:30},
+ {time:"",msg:"Hora de tomar o Ômega 3, são 2 cápsulas",snooze:30},
+ {time:"",msg:"Hora de tomar o HT Protein",snooze:30},
+ {time:"",msg:"Hora de tomar o Thermo Night+, são 2 cápsulas",snooze:30},
+ {time:"",msg:"Hora de tomar o Magnésio + Inositol",snooze:30}
+];
+let settings=JSON.parse(localStorage.getItem("ln_settings")||"null")||DEFAULTS;
+let records=JSON.parse(localStorage.getItem("ln_records")||"{}");
+let inventory=JSON.parse(localStorage.getItem("ln_inventory")||"null")||PRODUCTS.map(p=>p.stock);
+let selected=0;
+
+const $=id=>document.getElementById(id);
+const dayKey=()=>new Date().toISOString().slice(0,10);
+const now=()=>new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+function toast(t){$("toast").textContent=t;$("toast").classList.add("show");setTimeout(()=>$("toast").classList.remove("show"),2400)}
+function save(){localStorage.setItem("ln_settings",JSON.stringify(settings));localStorage.setItem("ln_records",JSON.stringify(records));localStorage.setItem("ln_inventory",JSON.stringify(inventory))}
+function go(id,btn){document.querySelectorAll(".screen").forEach(x=>x.classList.remove("active"));$(id).classList.add("active");document.querySelectorAll(".nav").forEach(x=>x.classList.remove("active"));btn.classList.add("active");render()}
+function statusFor(i){return records[dayKey()]?.[PRODUCTS[i].id]?.status||"Pendente"}
+function mark(i,status){
+ records[dayKey()] ||= {};
+ records[dayKey()][PRODUCTS[i].id]={status,at:now()};
+ if(status==="Tomado"){
+   const amount=PRODUCTS[i].dose.match(/\d+/)?.[0];
+   if(amount) inventory[i]=Math.max(0,inventory[i]-Number(amount));
+ }
+ save();render();toast(status==="Tomado"?"Registrado como tomado.":"Novo lembrete será feito depois.")
+}
+function render(){
+ $("today").textContent=new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"});
+ const done=PRODUCTS.filter((_,i)=>statusFor(i)==="Tomado").length;
+ $("progressText").textContent=`${done} de ${PRODUCTS.length} concluídos`;
+ $("tasks").innerHTML=PRODUCTS.map((p,i)=>{
+   const st=statusFor(i), s=settings[i];
+   return `<div class="task"><img src="logo.jpeg" alt=""><div><b>${p.name}</b><small>${p.dose}</small><small>${p.instruction}${s.time?" • "+s.time:""}</small><span class="status ${st==="Tomado"?"ok":st==="Adiado"?"pending":"late"}">${st}</span></div><div class="actions"><button class="btn btn-ok" onclick="mark(${i},'Tomado')">✓ Tomei</button><button class="btn btn-later" onclick="mark(${i},'Adiado')">⏰ Depois</button></div></div>`
+ }).join("");
+ $("sDone").textContent=done;$("sPending").textContent=PRODUCTS.length-done;$("sLow").textContent=inventory.filter((v,i)=>v<=PRODUCTS[i].min).length;
+ $("history").innerHTML=Object.keys(records).sort().reverse().slice(0,14).map(k=>{
+   const entries=PRODUCTS.map(p=>records[k]?.[p.id]?`${p.name}: ${records[k][p.id].status} (${records[k][p.id].at})`:null).filter(Boolean);
+   return `<div style="padding:10px 0;border-bottom:1px solid #e1e9f5"><b>${new Date(k+"T12:00:00").toLocaleDateString("pt-BR")}</b><div class="small" style="margin-top:4px">${entries.join(" • ")||"Sem registros"}</div></div>`
+ }).join("")||'<div class="empty">Nenhum registro ainda.</div>';
+ $("stockList").innerHTML=PRODUCTS.map((p,i)=>`<div style="padding:12px 0;border-bottom:1px solid #e1e9f5"><div class="row"><div><b>${p.name}</b><div class="small">${inventory[i]} unidades/doses • mínimo ${p.min}</div></div><span class="status ${inventory[i]<=p.min?"late":"ok"}">${inventory[i]<=p.min?"Baixo":"OK"}</span></div><input style="width:100%;margin-top:8px;padding:10px;border:1px solid #d7e1ef;border-radius:11px" type="number" min="0" value="${inventory[i]}" onchange="inventory[${i}]=Number(this.value)||0;save();render()"></div>`).join("");
+ $("productSelect").innerHTML=PRODUCTS.map((p,i)=>`<option value="${i}">${p.name}</option>`).join("");$("productSelect").value=selected;fillSettings();
+}
+function fillSettings(){const s=settings[selected];$("timeInput").value=s.time;$("messageInput").value=s.msg;$("snoozeInput").value=s.snooze}
+$("productSelect").addEventListener("change",e=>{selected=Number(e.target.value);fillSettings()});
+function saveSettings(){settings[selected]={time:$("timeInput").value,msg:$("messageInput").value||DEFAULTS[selected].msg,snooze:Math.max(5,Number($("snoozeInput").value)||30)};save();toast("Configuração salva.");render()}
+async function requestNotifications(){
+ if(!("Notification" in window)){toast("Este navegador não oferece notificações.");return}
+ const p=await Notification.requestPermission();toast(p==="granted"?"Notificações ativadas.":"Permissão de notificação não concedida.");
+}
+async function sendHelp(){
+ // Local demo; production uses Supabase realtime/push to the responsible account.
+ toast("Pedido de ajuda registrado para o responsável.");
+ records[dayKey()] ||= {}; records[dayKey()].help={status:"Ajuda solicitada",at:now()};save();
+}
+if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))}
+render();
+</script>
+</body>
+</html>
